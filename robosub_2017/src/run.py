@@ -35,6 +35,7 @@ class Zeabuscontrol:
         self.auv_state[5] = euler_angular[2]
 
     def stop(self,time):
+        rospy.sleep(time)    
         self.drive.linear.x=0 
         self.drive.linear.y=0 
         self.drive.linear.z=0
@@ -43,99 +44,96 @@ class Zeabuscontrol:
         self.drive.angular.y=0 
         self.drive.angular.z=0
         
-        # for i in xrange(5):
-        self.pub_vel.publish(self.drive)
-        rospy.sleep(time)    
-
-    def turnYaw(self,rad):
+        for i in xrange(3):
+            self.pub_vel.publish(self.drive)
+        
+    def auvMove(self,move,speed=1):
+        if move == 'forward':
+            self.drive.linear.x+=speed
+        elif move == 'backward':
+            self.drive.linear.x-=speed
+        elif move == 'up':
+            self.drive.linear.z+=speed
+        elif move == 'down':
+            self.drive.linear.z-=speed
+        elif move == 'left':
+            self.drive.linear.y+=speed
+        elif move == 'right':
+            self.drive.linear.y-=speed
+        for i in xrange(3):
+            self.pub_vel.publish(self.drive)
+        
+    def turnRealYaw(self,degree):
         self.stop(2)
-        self.pub_yaw.publish(Float64(math.radians(rad)))
-        rospy.sleep(2)
+        if degree > 180:
+            degree = degree%360-360
+        elif degree < -180:
+            degree = degree%360+360
+        self.pub_yaw.publish(Float64(math.radians(degree)))
+        rospy.sleep(5.3*degree/180)
 
-    def turnAbsYaw(self,rad):
-        self.stop(2)
-        self.pub_abs_yaw.publish(Float64(math.radians(rad)))
-        rospy.sleep(2)
+    def turnAbsYaw(self,degree=0):
+        self.stop(2)                    
+        self.pub_abs_yaw.publish(Float64(math.radians(degree)))
+        rospy.sleep(3)
 
     def depth(self,high):
         self.stop(2)
         self.pub_abs_depth.publish(high)
     
-    def run(self,position,turn=False):
-        self.stop(2)
-        here = (self.auv_state[0],self.auv_state[1],self.auv_state[2])
-        plus=1
-        if turn == True:
-            plus = -1
-        for pose in range(len(position)):
-            if position[pose] == 777: #not set position
-                continue    
-            while self.auv_state[pose] < position[pose]-(0.15*position[pose]):
-                # print self.auv_state
-                if pose == 0:
-                    self.drive.linear.x+=plus
-                elif pose == 1:                    
-                    self.drive.linear.y+=plus
-                elif pose == 2:
-                    self.drive.linear.z+=plus
-                self.pub_vel.publish(self.drive)
-            while self.auv_state[pose] > position[pose]+(0.15*position[pose]):
-                # print self.auv_state
-                if pose == 0:
-                    self.drive.linear.x-=plus
-                elif pose == 1:
-                    self.drive.linear.y-=plus
-                elif pose == 2:
-                    self.drive.linear.z-=plus
-                self.pub_vel.publish(self.drive)
-            print self.auv_state
-    
-    # def runTriangle(self,position):
-    #     degree = math.degrees(math.atan(position[1]/position[0]))
-    #     pose = self.auv_state[:3]
-    #     # here = (pose[0],pose[1],pose[2])
-    #     path = (position[0]**2+position[1]**2)**(1/2)
-    #     rospy.Subscriber('/auv/state',Odometry,self.getState)
-    #     if position[0] >= 0 :
-    #         if position[1] < 0:
-    #             degree = degree+90
-    #     elif position[0] < 0:
-    #         if positionp[1] >=0:
-    #             degree += 270
-    #         else:
-    #             degree = 270 - degree 
-    #     self.turnYaw(degree)
-    #     self.stop(4)
-    #     while math.sqrt((x-round(pose[0],2))**2+(y-round(pose[1]))**2)>1:
-    #         if position[0]-pose[0]
-        
-    #     self.pub_vel.publish(self.drive)
- 
-    def missionGate(self,position):
-        set_here = (self.auv_state[0],self.auv_state[1]) 
-        print('sethere',set_here)
-        self.turnAbsYaw(0)
-        self.run(position)
-        self.stop(2)
-        print self.auv_state
-        self.turnYaw(180)
-        self.stop(5)
-        position[0] = set_here[0];position[1] = set_here[1]
-        print('pose',position)
-        set_here = (self.auv_state[0],self.auv_state[1])
-        print('set_here',set_here)
-        self.run(position,True)
+    # def run(self,position,turn=False,move=1):
+    #     x2=position[0];y2=position[1] #;z2=position[2]
+    #     x1=self.auv_state[0];y1=self.auv_state[1];z1=self.auv_state[2]
+    #     if turn == True:
+    #         move = -1
+    #     for pose in range(len(position)):
+    #         if position[pose] == 777: #not set position
+    #             continue    
+    #         while math.sqrt((x2-round(x1,2))**2+(y2-round(y1,2)**2)) >1:
+    #             print self.auv_state
+    #             if pose == 0:
+    #                 if x1>x2:
+    #                     self.drive.linear.x-=move
+    #                 else:
+    #                     self.drive.linear.x+=move
+    #             elif pose == 1:
+    #                 if y1>y2:
+    #                     self.drive.linear.y-=move
+    #                 else:
+    #                     self.drive.linear.y+=move
+    #             # elif pose == 2:
+    #             #     self.drive.linear.z-=move
+    #             #     self.drive.linear.z+=move
+    #             self.pub_vel.publish(self.drive)
+    #         rospy.sleep(2)
+    #     self.stop(2)
+            
+    def runTriangle(self,position,move=1):
+        start = (self.auv_state[0],self.auv_state[1],self.auv_state[2])
+        x2=position[0];y2=position[1] #;z2=position[2]
+        while math.sqrt((x2-self.auv_state[0])**2+(y2-self.auv_state[1])**2) >0.5:
+            degree = math.degrees(math.atan2(position[1]-self.auv_state[1],position[0]-self.auv_state[0])-self.auv_state[5])
+            print 'degree: ',degree
+            if degree > 0.5:
+                self.turnRealYaw(degree)
+                rospy.sleep(0.3)
+            print 'distance',math.sqrt((x2-self.auv_state[0])**2+(y2-self.auv_state[1])**2)
+            # print self.auv_state
+            self.auvMove('forward')
+            rospy.sleep(0.3)
         self.stop(0.1)
-        print self.auv_state
 
 if __name__ == '__main__':
     # while not rospy.is_shutdown():  
         control=Zeabuscontrol()
         position = [int(input('x: ')),int(input('y: '))]#,int(input())]
-        control.missionGate(position)
+        control.runTriangle(position)
+        control.stop(2)
+        # angle = int(input('angle:'))
+        # control.turnRealYaw(angle)
         print control.auv_state
     
     # control.run(position)
     # control.stop()
-    # control.turnYaw(-90)
+    # control.turnRealYaw(-90)
     # control.depth(0.5)
